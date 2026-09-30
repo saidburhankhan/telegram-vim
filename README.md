@@ -1,5 +1,8 @@
 # telegram-vim
 
+[![tests](https://github.com/saidburkhanmukhtorov/telegram-vim/actions/workflows/tests.yml/badge.svg)](https://github.com/saidburkhanmukhtorov/telegram-vim/actions/workflows/tests.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **A distraction-free, vim-style Telegram client for your terminal — for work chats only.**
 
 Use Telegram like Slack: telegram-vim shows *only* the chats you put in one
@@ -17,8 +20,26 @@ The restriction isn't a setting you can switch off: global search, the full
 chat list, contacts, and joining channels simply don't exist in the code, and
 every action goes through one allowlist check (see [FEATURES.md](FEATURES.md)).
 
-Status: login, list, read, send, reply, send-file, download, listen, and the
-interactive vim-style app. Desktop notifications included. Reactions, pin, and forward come next.
+Status: login, list, read, send, reply, send-file, download, listen, desktop
+notifications, and the interactive vim-style app. Reactions, pin, and forward
+come next.
+
+> **Unofficial.** This project is not affiliated with or endorsed by Telegram.
+> It signs in as *your* user account through Telegram's public MTProto API,
+> using an api_id you create yourself.
+
+## Requirements
+
+- Python 3.11+
+- Linux or macOS (developed on Linux/Wayland; macOS support is lighter)
+- Optional, for extra features:
+
+| Tool | For |
+|---|---|
+| `ffmpeg` with libopus + PipeWire/PulseAudio | voice messages |
+| `wl-clipboard` (Wayland) or `xclip` (X11) | paste screenshots/files, copy text |
+| `notify-send` (libnotify) and `pw-play`/`paplay` | desktop notifications and sound |
+| `pngpaste` (macOS) | pasting images |
 
 ## Setup
 
@@ -46,7 +67,8 @@ no restart needed.
 ### 3. Install
 
 ```bash
-cd work-tg
+git clone https://github.com/saidburkhanmukhtorov/telegram-vim.git
+cd telegram-vim
 python3 -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 source .venv/bin/activate      # puts `tg` on your PATH
@@ -184,9 +206,12 @@ tg logout                         # end this session on Telegram's side
 
 ```
 ── Backend Team ──
-#4812 09:14 Alice: can someone review #231?
-      ↳ reply to #4812 Alice: can someone review #231?
-#4813 09:20 You: on it
+09:14  Alice  #4812
+  can someone review #231?
+
+09:20  You  #4813  ✓✓
+  ↳ reply to #4812 Alice: can someone review #231?
+  on it
 ```
 
 ## How the allowlist works
@@ -212,8 +237,12 @@ Updates are event-driven, with no polling.
 ## Tests
 
 ```bash
-pytest
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/pytest
 ```
+
+No Telegram account or network is needed: the tests use fakes, and nothing
+pops real notifications or touches your clipboard.
 
 The guard tests assert that non-allowed chat ids are blocked for every action
 and never reach the Telegram client.

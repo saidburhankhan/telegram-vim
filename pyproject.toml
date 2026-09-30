@@ -10,6 +10,21 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
+authors = [{ name = "Saidburxon Muxtor" }]
+keywords = ["telegram", "tui", "terminal", "vim", "telethon", "textual", "focus", "productivity"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console :: Curses",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Chat",
+]
 dependencies = [
     "telethon>=1.36",
     "cryptg>=0.4",  # native AES; without it Telethon encrypts media in pure Python
@@ -20,6 +35,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/saidburkhanmukhtorov/telegram-vim"
+Issues = "https://github.com/saidburkhanmukhtorov/telegram-vim/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
