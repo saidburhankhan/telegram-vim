@@ -27,12 +27,20 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Iterable
 
 from telethon import events, utils
-from telethon.errors import FloodWaitError
+from telethon.errors import FloodWaitError, RPCError
 from telethon.tl import functions, types
 
 log = logging.getLogger("tg.guard")
 
 CATEGORY_FLAGS = ("contacts", "non_contacts", "groups", "broadcasts", "bots")
+
+# Failures that mean "Telegram is unreachable or said no", as opposed to bugs.
+# Only these may fall back to the cached allowlist (or keep the current one).
+# FloodWaitError is an RPCError, so it is included.
+NETWORK_ERRORS = (RPCError, ConnectionError, OSError, asyncio.TimeoutError)
+
+MAX_FLOOD_WAIT = 60  # seconds; longer flood waits are reported, not slept through
+MAX_FLOOD_RETRIES = 3
 
 
 class GuardError(Exception):
@@ -61,6 +69,35 @@ class ChatNotFoundError(GuardError):
 
 class AmbiguousChatError(GuardError):
     pass
+
+
+class RateLimitedError(GuardError):
+    """Telegram asked us to wait longer than we are willing to sleep."""
+
+    def __init__(self, seconds: int):
+        super().__init__(f"Telegram rate limit: try again in {human_wait(seconds)}")
+        self.seconds = seconds
+
+
+def human_wait(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = -(-seconds // 60)  # round up: "try again in 0 min" helps nobody
+    if minutes < 60:
+        return f"{minutes} min"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} h {minutes} min" if minutes else f"{hours} h"
+
+
+async def _flood_sleep(seconds: int, hook: Callable[[int], Any] | None) -> None:
+    """Tell the hook (if any) about a short flood wait, then sleep through it."""
+    if hook is not None:
+        try:
+            hook(seconds)
+        except Exception:
+            log.exception("on_flood_wait hook failed")
+    log.warning("rate limited by Telegram, waiting %ss", seconds)
+    await asyncio.sleep(seconds + 1)
 
 
 # --------------------------------------------------------------------------- #
@@ -292,21 +329,30 @@ class Guard:
         self._audit.warning("allowlist cleared: %s", reason)
         self.set_peers({}, "none")
 
-    async def load(self, client: Any, self_id: int | None = None) -> None:
+    async def load(
+        self, client: Any, self_id: int | None = None,
+        on_flood_wait: Callable[[int], Any] | None = None,
+    ) -> None:
         """Initial load: API first, local cache as fallback for API failures only."""
         try:
-            while True:
+            for attempt in range(MAX_FLOOD_RETRIES + 1):
                 try:
                     result = await client(functions.messages.GetDialogFiltersRequest())
                     break
                 except FloodWaitError as e:
-                    log.warning("rate limited by Telegram, waiting %ss", e.seconds)
-                    await asyncio.sleep(e.seconds + 1)
-        except Exception as e:  # network / RPC failure
+                    # A long (or repeated) flood wait is re-raised; being an
+                    # RPCError it lands below and falls back to the cache.
+                    if e.seconds > MAX_FLOOD_WAIT or attempt == MAX_FLOOD_RETRIES:
+                        raise
+                    await _flood_sleep(e.seconds, on_flood_wait)
+        except NETWORK_ERRORS as e:
             log.warning("GetDialogFilters failed (%s); trying cached allowlist", e)
             self._audit.warning("API load failed: %s", e)
             self._load_cache()
             return
+        except Exception:
+            log.exception("GetDialogFilters failed unexpectedly; not using the cache")
+            raise
         # Folder-not-found and category-rule errors propagate: never fall back.
         peers = build_allowlist(result, self.folder, self_id)
         self.set_peers(peers, "api")
@@ -315,13 +361,21 @@ class Guard:
     async def refresh(self, client: Any, self_id: int | None = None) -> tuple[set[int], set[int]]:
         try:
             result = await client(functions.messages.GetDialogFiltersRequest())
-        except Exception as e:
+        except NETWORK_ERRORS as e:
             self._audit.warning("live refresh failed, keeping current allowlist: %s", e)
+            return set(), set()
+        except Exception as e:
+            log.exception("live refresh failed unexpectedly")
+            self.clear(f"live refresh failed unexpectedly: {e!r}")
             return set(), set()
         try:
             peers = build_allowlist(result, self.folder, self_id)
         except GuardError as e:
             self.clear(str(e))
+            return set(), set()
+        except Exception as e:
+            log.exception("could not parse folder update")
+            self.clear(f"could not parse folder update: {e!r}")
             return set(), set()
         changes = self.set_peers(peers, "api")
         self._save_cache()
@@ -350,20 +404,38 @@ class Guard:
         os.replace(tmp, self.cache_path)
 
     def _load_cache(self) -> None:
+        def corrupted(why: str) -> GuardError:
+            return GuardError(
+                f"cached allowlist at {self.cache_path} is corrupted ({why}); "
+                "delete it and run again once Telegram is reachable"
+            )
+
         try:
             data = json.loads(self.cache_path.read_text())
         except FileNotFoundError:
             raise GuardError("could not reach Telegram and no cached allowlist exists") from None
+        except ValueError as e:  # bad JSON or bad UTF-8
+            raise corrupted(f"invalid JSON: {e}") from None
+        if not isinstance(data, dict) or not isinstance(data.get("peers", []), list):
+            raise corrupted("unexpected layout")
         if data.get("folder") != self.folder:
             raise GuardError(
                 f"cached allowlist is for folder {data.get('folder')!r}, not {self.folder!r}"
             )
         peers: dict[int, Any] = {}
         for d in data.get("peers", []):
-            p = peer_from_json(d)
-            if isinstance(p, types.InputPeerSelf):
-                continue  # can't compute id offline; skip rather than guess
-            peers[utils.get_peer_id(p)] = p
+            if not isinstance(d, dict):
+                raise corrupted(f"bad peer entry {d!r}")
+            try:
+                p = peer_from_json(d)
+                if isinstance(p, types.InputPeerSelf):
+                    continue  # can't compute id offline; skip rather than guess
+                pid = utils.get_peer_id(p)
+            except (KeyError, TypeError, ValueError, GuardError) as e:
+                raise corrupted(f"bad peer entry {d!r}: {e!r}") from None
+            if isinstance(pid, bool) or not isinstance(pid, int):
+                raise corrupted(f"bad peer entry {d!r}")
+            peers[pid] = p
         self.set_peers(peers, "cache")
 
     def _make_audit_logger(self) -> logging.Logger:
@@ -407,6 +479,9 @@ class GuardedClient:
         self.self_id = self_id
         self._info: dict[int, ChatInfo] = {}
         self._chat_listeners: list[Callable[[list[ChatInfo]], Any]] = []
+        # Called with the wait in seconds just before sleeping through a short
+        # flood wait, so the UI can say why nothing is happening.
+        self.on_flood_wait: Callable[[int], Any] | None = None
 
     # ---- lifecycle -------------------------------------------------------- #
 
@@ -427,13 +502,18 @@ class GuardedClient:
         await self._client.run_until_disconnected()
 
     async def _call(self, fn: Callable[..., Awaitable[Any]], *args, **kwargs) -> Any:
-        """Run an API call, honouring FloodWaitError by sleeping and retrying."""
-        while True:
+        """Run an API call, sleeping through short flood waits (up to 3 retries).
+
+        Long waits, or too many short ones, raise ``RateLimitedError``.
+        """
+        for attempt in range(MAX_FLOOD_RETRIES + 1):
             try:
                 return await fn(*args, **kwargs)
             except FloodWaitError as e:
-                log.warning("rate limited by Telegram, waiting %ss", e.seconds)
-                await asyncio.sleep(e.seconds + 1)
+                if e.seconds > MAX_FLOOD_WAIT or attempt == MAX_FLOOD_RETRIES:
+                    raise RateLimitedError(e.seconds) from e
+                await _flood_sleep(e.seconds, self.on_flood_wait)
+        raise AssertionError("unreachable")
 
     # ---- chat metadata ---------------------------------------------------- #
 

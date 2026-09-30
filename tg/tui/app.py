@@ -830,7 +830,8 @@ class ChatScreen(Screen):
         if not item:
             return
         text = "\n".join(render.body_text(m) for m in item if render.body_text(m))
-        self.app_.copy(text)
+        # app-level worker: awaiting here would hold up key handling until it's done
+        self.app_.run_worker(self.app_.copy(text), group="copy")
 
     def action_view(self) -> None:
         item = self.selected_item()
@@ -1140,7 +1141,8 @@ class MessageViewScreen(ModalScreen):
     def action_copy(self) -> None:
         ta = self.query_one("#viewer", TextArea)
         text = ta.selected_text or ta.text
-        self.app.copy(text)  # type: ignore[attr-defined]
+        # on the app, so closing this screen doesn't cancel the copy
+        self.app.run_worker(self.app.copy(text), group="copy")  # type: ignore[attr-defined]
 
 
 HELP = """\
@@ -1244,7 +1246,12 @@ class TelegramVim(App):
         self.gc.on_message_deleted(self._on_tg_delete)
         self.gc.on_outbox_read(self._on_tg_read)
         self.gc.on_chats_changed(self._on_folder_changed)
+        self.gc.on_flood_wait = self._on_flood_wait
         self.push_screen(ChatListScreen())
+
+    def _on_flood_wait(self, seconds: int) -> None:
+        self.notify(f"Telegram rate limit: waiting {seconds}s…", severity="warning",
+                    timeout=max(2, min(seconds, 10)))
 
     def make_recorder(self, dest: Path) -> media.VoiceRecorder:
         return media.VoiceRecorder(dest, self.voice_source)
@@ -1259,12 +1266,13 @@ class TelegramVim(App):
         if not isinstance(self.screen, HelpScreen):
             self.push_screen(HelpScreen())
 
-    def copy(self, text: str) -> None:
+    async def copy(self, text: str) -> None:
         """Copy via the system clipboard tool and the terminal (OSC 52)."""
         if not text:
             self.notify("nothing to copy", timeout=1.5)
             return
-        ok = media.copy_text(text)
+        # wl-copy/xclip can hang for seconds; keep the UI responsive meanwhile.
+        ok = await asyncio.to_thread(media.copy_text, text)
         try:
             self.copy_to_clipboard(text)
             ok = True

@@ -57,8 +57,11 @@ All of this lives in `tg/guard.py`, the single source of truth.
   the running client immediately (`UpdateDialogFilter`), with no restart.
 - **Fails closed.** If the folder is deleted, or gains category rules while the
   app is running, the allowlist is emptied.
-- **Offline fallback.** The last good allowlist is cached (`allowlist.json`,
-  mode 0600) and used only if Telegram can't be reached at startup, never to
+- **Allowlist cache.** The last good allowlist is cached (`allowlist.json`,
+  mode 0600) and used only when Telegram fails to return your folders because
+  of a network or Telegram error. It is not an offline mode, since logging in
+  needs a connection. Unexpected errors stop startup instead, a corrupted cache
+  file is reported clearly, and the cache is never used to
   get around a folder problem.
 - **Audit log.** Chats added to or removed from the allowlist are logged to
   `allowlist.log`.
@@ -74,8 +77,10 @@ All of this lives in `tg/guard.py`, the single source of truth.
 - `config.toml`, session files, cache, and logs are in `.gitignore`.
 - `api_id` / `api_hash` come from the config file or the `TG_API_ID` /
   `TG_API_HASH` environment variables.
-- Rate limits (`FloodWaitError`) are handled by waiting the required time.
-  Updates are event-driven, with no polling.
+- Rate limits (`FloodWaitError`): waits of up to 60 s are retried
+  automatically (up to 3 times) and shown in the app or CLI. Longer ones stop
+  with a clear "try again in N min" error instead of hanging. Updates are
+  event-driven, with no polling.
 
 ---
 
@@ -210,6 +215,10 @@ instead of a traceback.
   messages drops the oldest ones to free memory. `k` at the top reloads them.
 - The chat list isn't redrawn while it's hidden behind a chat, and a burst of
   incoming messages redraws it once.
+- Copying (`y`) runs the clipboard tool in a background thread, so a slow
+  clipboard can't freeze the app.
+- `tg list` reuses the chat data loaded at startup instead of asking Telegram
+  twice.
 
 ### Copying
 - `y` copies the whole message through the system clipboard *and* the

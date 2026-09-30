@@ -549,15 +549,66 @@ async def test_copy_and_view(monkeypatch):
         await pilot.pause()
         await open_backend(pilot, app)
         await pilot.press("y")
+        await pilot.pause()
         assert copied == ["deploy?"]
         await pilot.press("v")
         await pilot.pause()
         assert type(app.screen).__name__ == "MessageViewScreen"
         await pilot.press("y")
+        await pilot.pause()
         assert copied[-1] == "deploy?"
         await pilot.press("escape")
         await pilot.pause()
         assert isinstance(app.screen, ChatScreen)
+
+
+def notes(app):
+    return [str(n.message) for n in app._notifications]
+
+
+async def test_copy_runs_off_the_event_loop(monkeypatch):
+    import asyncio
+    import threading
+    calls = []
+    release = threading.Event()   # the "clipboard tool" hangs until the test lets it go
+
+    def slow_copy(text):
+        calls.append((text, threading.current_thread() is threading.main_thread()))
+        release.wait(5)
+        return True
+
+    monkeypatch.setattr(media, "copy_text", slow_copy)
+    gc = FakeGC()
+    app = TelegramVim(gc, "Work")
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await open_backend(pilot, app)
+        try:
+            await pilot.press("y")
+            await pilot.press("k")            # still handled while the copy hangs
+            await pilot.pause()
+            assert selected_id(app) == 99
+            assert calls == [("deploy?", False)]
+            assert "copied" not in notes(app)
+        finally:
+            release.set()
+        for _ in range(100):
+            if "copied" in notes(app):
+                break
+            await asyncio.sleep(0.02)
+        assert "copied" in notes(app)
+
+
+async def test_flood_wait_shows_toast():
+    gc = FakeGC()
+    app = TelegramVim(gc, "Work")
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        app.gc.on_flood_wait(12)
+        await pilot.pause()
+        assert any("12s" in n for n in notes(app))
+        n = next(n for n in app._notifications if "12s" in str(n.message))
+        assert n.severity == "warning" and n.timeout == 10
 
 
 class FakeRecorder:

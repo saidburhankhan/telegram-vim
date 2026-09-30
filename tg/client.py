@@ -7,7 +7,7 @@ import tomllib
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable
 
 from telethon import TelegramClient
 from telethon.errors import PhoneNumberInvalidError
@@ -117,12 +117,13 @@ def _secure_session_file(path: Path) -> None:
 
 def make_client(cfg: Config) -> TelegramClient:
     _secure_session_file(cfg.session_path)
-    # Telethon sleeps automatically on FloodWait up to this threshold.
+    # Never let Telethon sleep on FloodWait by itself: it raises FloodWaitError
+    # and GuardedClient decides (sleep through short waits, report long ones).
     client = TelegramClient(
         str(cfg.session_path.with_suffix("")),
         cfg.api_id,
         cfg.api_hash,
-        flood_sleep_threshold=24 * 3600,
+        flood_sleep_threshold=0,
         device_model="telegram-vim",
         app_version="0.1.0",
     )
@@ -166,11 +167,15 @@ async def logout(cfg: Config) -> None:
 
 
 @asynccontextmanager
-async def open_guarded(cfg: Config, live: bool = False) -> AsyncIterator[GuardedClient]:
+async def open_guarded(
+    cfg: Config, live: bool = False, on_flood_wait: Callable[[int], Any] | None = None,
+) -> AsyncIterator[GuardedClient]:
     """Connect, load the folder allowlist, and yield the guarded API surface.
 
     ``live=True`` also subscribes to folder updates so the allowlist refreshes
     without restarting (used by long-running commands like ``listen`` and ``ui``).
+    ``on_flood_wait`` is installed before the first request, so waits during
+    startup are reported too.
     """
     client = make_client(cfg)
     await client.connect()
@@ -180,8 +185,9 @@ async def open_guarded(cfg: Config, live: bool = False) -> AsyncIterator[Guarded
         me = await client.get_me(input_peer=True)
         self_id = me.user_id
         guard = Guard(cfg.folder, cfg.cache_path, cfg.log_path)
-        await guard.load(client, self_id)
+        await guard.load(client, self_id, on_flood_wait)
         gc = GuardedClient(client, guard, self_id)
+        gc.on_flood_wait = on_flood_wait
         if live:
             gc.install_live_refresh()
         await gc.refresh_chats()

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from telethon import utils
+from telethon.errors import FloodWaitError, RPCError
 from telethon.tl import types
 from telethon.tl.types.messages import DialogFilters
 
@@ -18,6 +19,7 @@ from tg.guard import (
     GuardedClient,
     GuardError,
     NotAllowedError,
+    RateLimitedError,
     build_allowlist,
     resolve_chat,
     title_text,
@@ -293,10 +295,20 @@ async def test_refresh_fails_closed_when_folder_deleted(guard):
     assert guard.allowed_ids == frozenset()
 
 
-async def test_refresh_api_error_keeps_current(guard):
+@pytest.mark.parametrize("exc", [
+    ConnectionError("offline"), TimeoutError(), RPCError(None, "INTERNAL"),
+    FloodWaitError(request=None, capture=30),
+])
+async def test_refresh_api_error_keeps_current(guard, exc):
     before = guard.allowed_ids
-    await guard.refresh(FiltersClient(exc=ConnectionError("offline")))
+    await guard.refresh(FiltersClient(exc=exc))
     assert guard.allowed_ids == before
+
+
+async def test_refresh_unexpected_error_fails_closed(guard):
+    assert await guard.refresh(FiltersClient(exc=AttributeError("bug"))) == (set(), set())
+    assert guard.allowed_ids == frozenset()
+    assert "allowlist cleared" in guard.log_path.read_text()
 
 
 # ---- cache fallback -------------------------------------------------------- #
@@ -330,12 +342,161 @@ async def test_cache_for_other_folder_rejected(tmp_path):
         await g.load(FiltersClient(exc=ConnectionError("offline")))
 
 
+@pytest.mark.parametrize("exc", [
+    RPCError(None, "INTERNAL"), TimeoutError(), OSError("no route"),
+    FloodWaitError(request=None, capture=3600),  # too long to wait: use the cache
+])
+async def test_load_network_errors_use_cache(tmp_path, exc):
+    g = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
+    await g.load(FiltersClient([work_folder()]))
+    g2 = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
+    await g2.load(FiltersClient(exc=exc))
+    assert g2.source == "cache"
+    assert g2.allowed_ids == {ALICE_ID, TEAM_ID, OLDGROUP_ID}
+
+
+async def test_load_unexpected_error_propagates_without_cache(tmp_path):
+    g = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
+    await g.load(FiltersClient([work_folder()]))
+    g2 = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
+    with pytest.raises(AttributeError):
+        await g2.load(FiltersClient(exc=AttributeError("bug")))
+    assert g2.source == "none"
+    assert g2.allowed_ids == frozenset()
+
+
+@pytest.mark.parametrize("content", [
+    "{not json",
+    "[]",
+    json.dumps({"folder": "Work", "peers": {"type": "user"}}),
+    json.dumps({"folder": "Work", "peers": ["user"]}),
+    json.dumps({"folder": "Work", "peers": [{"type": "user", "id": 111}]}),
+    json.dumps({"folder": "Work", "peers": [{"id": 111}]}),
+    json.dumps({"folder": "Work", "peers": [{"type": "martian", "id": 1}]}),
+    json.dumps({"folder": "Work", "peers": [{"type": "channel", "id": "x", "access_hash": 1}]}),
+])
+async def test_corrupted_cache_is_clear_error(tmp_path, content):
+    p = tmp_path / "allowlist.json"
+    p.write_text(content)
+    g = Guard("Work", p, tmp_path / "a.log")
+    with pytest.raises(GuardError, match="corrupted"):
+        await g.load(FiltersClient(exc=ConnectionError("offline")))
+    assert g.allowed_ids == frozenset()
+
+
+async def test_load_sleeps_through_short_flood_wait(tmp_path, sleeps):
+    class Flaky:
+        def __init__(self):
+            self.n = 0
+
+        async def __call__(self, req):
+            self.n += 1
+            if self.n == 1:
+                raise FloodWaitError(request=None, capture=5)
+            return [work_folder()]
+
+    waits = []
+    g = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
+    await g.load(Flaky(), on_flood_wait=waits.append)
+    assert g.source == "api"
+    assert waits == [5] and sleeps == [6]
+
+
 async def test_category_rules_do_not_fall_back_to_cache(tmp_path):
     g = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
     await g.load(FiltersClient([work_folder()]))
     g2 = Guard("Work", tmp_path / "allowlist.json", tmp_path / "a.log")
     with pytest.raises(CategoryRulesError):
         await g2.load(FiltersClient([work_folder(groups=True)]))
+
+
+# ---- rate limits ----------------------------------------------------------- #
+
+
+@pytest.fixture
+def sleeps(monkeypatch):
+    """Record asyncio.sleep calls in tg.guard instead of actually sleeping."""
+    import tg.guard
+
+    recorded = []
+
+    async def fake_sleep(s):
+        recorded.append(s)
+
+    monkeypatch.setattr(tg.guard.asyncio, "sleep", fake_sleep)
+    return recorded
+
+
+class FloodingClient(RecordingClient):
+    """Raises FloodWaitError for the first ``times`` sends, then succeeds."""
+
+    def __init__(self, seconds, times):
+        super().__init__()
+        self.seconds, self.times = seconds, times
+
+    async def send_message(self, *a, **kw):
+        self.calls.append(("send_message", a, kw))
+        if len(self.calls) <= self.times:
+            raise FloodWaitError(request=None, capture=self.seconds)
+        return FakeResult()
+
+
+async def test_short_flood_wait_retried(guard, sleeps):
+    fake = FloodingClient(seconds=30, times=1)
+    gc = GuardedClient(fake, guard)
+    waits = []
+    gc.on_flood_wait = waits.append
+    await gc.send_message(TEAM_ID, "hi")
+    assert waits == [30]
+    assert sleeps == [31]
+    assert len(fake.calls) == 2
+
+
+async def test_flood_wait_hook_errors_swallowed(guard, sleeps):
+    gc = GuardedClient(FloodingClient(seconds=5, times=1), guard)
+    gc.on_flood_wait = lambda s: 1 / 0
+    await gc.send_message(TEAM_ID, "hi")
+    assert sleeps == [6]
+
+
+async def test_long_flood_wait_raises_without_sleeping(guard, sleeps):
+    fake = FloodingClient(seconds=720, times=1)
+    gc = GuardedClient(fake, guard)
+    gc.on_flood_wait = lambda s: pytest.fail("hook called for a long wait")
+    with pytest.raises(RateLimitedError, match="12 min") as ei:
+        await gc.send_message(TEAM_ID, "hi")
+    assert ei.value.seconds == 720
+    assert isinstance(ei.value, GuardError)
+    assert sleeps == [] and len(fake.calls) == 1
+
+
+async def test_repeated_short_flood_waits_give_up(guard, sleeps):
+    fake = FloodingClient(seconds=10, times=100)
+    gc = GuardedClient(fake, guard)
+    with pytest.raises(RateLimitedError):
+        await gc.send_message(TEAM_ID, "hi")
+    assert sleeps == [11, 11, 11]
+    assert len(fake.calls) == 4
+
+
+@pytest.mark.parametrize("seconds,text", [(12, "12s"), (61, "2 min"), (3600, "1 h"), (5400, "1 h 30 min")])
+def test_rate_limited_message(seconds, text):
+    assert str(RateLimitedError(seconds)) == f"Telegram rate limit: try again in {text}"
+
+
+def test_make_client_disables_telethon_flood_sleep(tmp_path, monkeypatch):
+    import tg.client
+
+    seen = {}
+
+    def fake_client(*a, **kw):
+        seen.update(kw)
+        return object()
+
+    monkeypatch.setattr(tg.client, "TelegramClient", fake_client)
+    cfg = tg.client.Config(1, "hash", "Work", tmp_path / "data", tmp_path / "dl")
+    tg.client.make_client(cfg)
+    assert seen["flood_sleep_threshold"] == 0
 
 
 # ---- name resolution only searches the allowlist --------------------------- #

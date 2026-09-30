@@ -227,11 +227,16 @@ tg logout                         # end this session on Telegram's side
 - Incoming messages are filtered against the *live* allowlist on every event.
 - `UpdateDialogFilter` events trigger a refresh. If the folder is deleted or
   gains category rules while running, the allowlist is **cleared** (fail closed).
-- The last good allowlist is cached at `<data_dir>/allowlist.json` (0600) and
-  used only if Telegram can't be reached at startup.
+- The last good allowlist is cached at `<data_dir>/allowlist.json` (0600). It
+  is used only when the connection works but Telegram fails to return your
+  folders (a network drop or Telegram error mid-startup). It is **not** an
+  offline mode: without a connection the app can't log in, so it stops. Any
+  other error stops startup instead of silently using the cache.
 - Changes (added/removed chat ids) are logged to `<data_dir>/allowlist.log`.
 
-Rate limits (`FloodWaitError`) are handled by waiting the required time.
+Rate limits (`FloodWaitError`): waits of up to 60 seconds are sat out
+automatically (the app shows "Telegram rate limit: waiting Ns…"). Longer ones
+stop with a clear "try again in N min" error instead of looking frozen.
 Updates are event-driven, with no polling.
 
 ## Tests

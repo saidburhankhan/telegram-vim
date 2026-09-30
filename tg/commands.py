@@ -39,6 +39,15 @@ def run(coro_fn: Callable[[], Awaitable[Any]]) -> None:
         raise typer.Exit(130)
 
 
+def _show_flood_wait(seconds: int) -> None:
+    err.print(f"[yellow]rate limited by Telegram, waiting {seconds}s…[/yellow]")
+
+
+def _open(cfg, live: bool = False):
+    """``open_guarded`` that tells the user when a rate limit makes it wait."""
+    return open_guarded(cfg, live=live, on_flood_wait=_show_flood_wait)
+
+
 def prompt_phone() -> str:
     while True:
         raw = typer.prompt("Phone number with country code (e.g. +998901234567)")
@@ -65,7 +74,8 @@ def ui() -> None:
     logging.basicConfig(filename=cfg.data_dir / "tg.log", level=logging.WARNING, force=True)
 
     async def main():
-        async with open_guarded(cfg, live=True) as gc:
+        async with _open(cfg, live=True) as gc:
+            gc.on_flood_wait = None  # printing would garble the full-screen UI; it sets its own
             await TelegramVim(
                 gc, cfg.folder, cfg.download_dir, cfg.data_dir / "tmp",
                 voice_source=cfg.voice_source, voice_release_ms=cfg.voice_release_ms,
@@ -88,7 +98,7 @@ def login() -> None:
             password=lambda: getpass.getpass("2FA password: "),
         )
         console.print(f"[green]Logged in as {who}.[/green] Session: {cfg.session_path}")
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             n = len(gc.guard.allowed_ids)
             console.print(f"Folder [bold]{cfg.folder!r}[/bold] allows {n} chat(s). Try `tg list`.")
 
@@ -113,8 +123,8 @@ def list_chats() -> None:
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
-            chats = await gc.refresh_chats()
+        async with _open(cfg) as gc:
+            chats = sorted(gc.chats(), key=lambda c: c.name.casefold())  # loaded by open_guarded
             if gc.guard.source == "cache":
                 err.print("[yellow]warning: using cached allowlist (Telegram unreachable)[/yellow]")
             if not chats:
@@ -138,7 +148,7 @@ def read(
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             info = await gc.resolve(chat)
             msgs, by_id = await gc.get_history(info.peer_id, limit=n)
             console.print(f"[bold]── {render.escape(info.name)} ──[/bold]")
@@ -158,7 +168,7 @@ def send(
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             info = await gc.resolve(chat)
             m = await gc.send_message(info.peer_id, text)
             console.print(f"[green]sent[/green] #{m.id} → {render.escape(info.name)}")
@@ -176,7 +186,7 @@ def reply(
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             info = await gc.resolve(chat)
             m = await gc.reply(info.peer_id, msg_id, text)
             console.print(f"[green]replied[/green] #{m.id} → #{msg_id} in {render.escape(info.name)}")
@@ -193,7 +203,7 @@ def download(
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             info = await gc.resolve(chat)
             msgs = await gc.get_messages_by_id(info.peer_id, [msg_id])
             if not msgs:
@@ -221,7 +231,7 @@ def send_file(
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg) as gc:
+        async with _open(cfg) as gc:
             info = await gc.resolve(chat)
             m = await gc.send_file(info.peer_id, str(path), caption=caption, reply_to=reply_to)
             console.print(f"[green]sent[/green] #{m.id} {path.name} → {render.escape(info.name)}")
@@ -235,7 +245,7 @@ def listen() -> None:
     cfg = _cfg()
 
     async def main():
-        async with open_guarded(cfg, live=True) as gc:
+        async with _open(cfg, live=True) as gc:
 
             async def on_msg(event):
                 await event.get_sender()
