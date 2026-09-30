@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "work-tg"
+version = "0.1.0"
+description = "Distraction-free, vim-style Telegram client for the terminal, restricted to one work chat folder"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "telethon>=1.36",
+    "cryptg>=0.4",  # native AES; without it Telethon encrypts media in pure Python
+    "typer>=0.12",
+    "rich>=13",
+    "textual>=0.60",
+]
+
+[project.urls]
+Homepage = "https://github.com/saidburkhanmukhtorov/telegram-vim"
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+tg = "tg.commands:app"
+
+[tool.setuptools.packages.find]
+include = ["tg*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
