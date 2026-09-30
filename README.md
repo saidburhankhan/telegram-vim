@@ -58,7 +58,7 @@ In the official Telegram app: **Settings → Chat Folders → Create New Folder*
 - Name it `Work` (or anything; it must match `folder` in the config).
 - Under **Included Chats**, add work chats **one by one**.
 - Do **not** tick the category options (Contacts, Non-Contacts, Groups,
-  Channels, Bots). work-tg refuses to start if any are enabled, because they
+  Channels, Bots). telegram-vim refuses to start if any are enabled, because they
   can pull personal chats in.
 
 Chats you add or remove later show up live in `tg listen` (and the TUI), with
@@ -77,12 +77,12 @@ source .venv/bin/activate      # puts `tg` on your PATH
 ### 4. Configure
 
 ```bash
-cp config.example.toml config.toml   # or ~/.config/work-tg/config.toml
+cp config.example.toml config.toml   # or ~/.config/telegram-vim/config.toml
 $EDITOR config.toml                  # set api_id, api_hash, folder
 ```
 
 The config is looked up in `$TG_CONFIG`, then `./config.toml`, then
-`~/.config/work-tg/config.toml`. `TG_API_ID` / `TG_API_HASH` env vars override
+`~/.config/telegram-vim/config.toml`. `TG_API_ID` / `TG_API_HASH` env vars override
 the file.
 
 `config.toml`, `*.session`, the allowlist cache, and logs are in `.gitignore`.

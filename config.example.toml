@@ -1,6 +1,6 @@
 # Copy to one of:
 #   ./config.toml
-#   ~/.config/work-tg/config.toml
+#   ~/.config/telegram-vim/config.toml
 #   any path, then export TG_CONFIG=/path/to/config.toml
 #
 # api_id / api_hash can also come from TG_API_ID / TG_API_HASH env vars
@@ -14,10 +14,10 @@ api_hash = "0123456789abcdef0123456789abcdef"
 folder = "Work"
 
 # Where the session file, allowlist cache, and logs live (created with 0700).
-data_dir = "~/.local/share/work-tg"
+data_dir = "~/.local/share/telegram-vim"
 
 # Where `tg download` saves files (Phase 2).
-download_dir = "~/Downloads/work-tg"
+download_dir = "~/Downloads/telegram-vim"
 
 [voice]
 # Microphone for voice messages ("default" = system default input).

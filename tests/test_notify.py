@@ -27,7 +27,7 @@ def test_linux_silent_sound_off(monkeypatch, spawned):
     notify.Notifier("off").send("t", "b")
     assert spawned == []
     notify.Notifier("silent").send("t", "b")
-    assert spawned == [["notify-send", "-a", "work-tg", "-h", "boolean:suppress-sound:true", "--", "t", "b"]]
+    assert spawned == [["notify-send", "-a", "telegram-vim", "-h", "boolean:suppress-sound:true", "--", "t", "b"]]
     spawned.clear()
     monkeypatch.setattr(notify, "SOUND_FILES", (notify.Path(__file__),))
     notify.Notifier("sound").send("t", "b")

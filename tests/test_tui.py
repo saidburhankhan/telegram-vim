@@ -9,7 +9,7 @@ from textual.widgets import Input, OptionList, Static
 from tg import media, notify
 
 from tg.guard import ChatInfo, NotAllowedError
-from tg.tui.app import ChatListScreen, ChatScreen, WorkTG
+from tg.tui.app import ChatListScreen, ChatScreen, TelegramVim
 from tg.tui.search import by_recent, filter_chats
 
 NOW = datetime.now(timezone.utc)
@@ -230,7 +230,7 @@ async def _noop():
 
 async def test_list_normal_mode_search_and_open():
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         assert isinstance(app.screen, ChatListScreen)
@@ -264,7 +264,7 @@ async def test_list_normal_mode_search_and_open():
 
 async def test_insert_reply_and_live_messages():
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -310,7 +310,7 @@ async def test_follow_reply_chain_and_jump_back():
     child.reply_to = SimpleNamespace(reply_to_msg_id=80)
     filler = [msg(i, f"chat {i}", 190 - (i - 81)) for i in range(81, 160)]
     gc = FakeGC(store={10: old + [parent] + filler + [child]})
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -333,7 +333,7 @@ async def test_follow_reply_chain_and_jump_back():
 async def test_search_in_chat_n_N():
     gc = FakeGC()
     gc.store[10].append(msg(101, "standup moved", 1))
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -353,7 +353,7 @@ async def test_paste_file_from_clipboard(monkeypatch, tmp_path):
     img.write_bytes(b"png")
     monkeypatch.setattr(media, "read_clipboard_files", lambda tmp: media.ClipboardFiles([img]))
     gc = FakeGC()
-    app = WorkTG(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
+    app = TelegramVim(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -379,7 +379,7 @@ async def test_enter_on_photo_downloads_and_opens(monkeypatch, tmp_path):
         sizes=[types.PhotoSize(type="y", w=1280, h=720, size=1_200_000)]))
     gc = FakeGC()
     gc.store[10].append(photo)
-    app = WorkTG(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
+    app = TelegramVim(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -392,7 +392,7 @@ async def test_enter_on_photo_downloads_and_opens(monkeypatch, tmp_path):
 
 
 async def test_help_screen():
-    app = WorkTG(FakeGC(), "Work")
+    app = TelegramVim(FakeGC(), "Work")
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()
         await pilot.press("question_mark")
@@ -405,7 +405,7 @@ async def test_help_screen():
 
 async def test_unread_in_background_keeps_highlight():
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await pilot.press("j", "j")
@@ -432,7 +432,7 @@ async def test_album_shows_as_one_item(tmp_path):
         m.grouped_id = 55
     b.message = "two screenshots"
     gc.store[10] += [a, b]
-    app = WorkTG(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
+    app = TelegramVim(gc, "Work", tmp_path / "dl", tmp_path / "tmp")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -447,7 +447,7 @@ async def test_album_shows_as_one_item(tmp_path):
 async def test_edit_and_delete_own_message():
     gc = FakeGC()
     gc.store[10].append(msg(101, "typo heer", 1, out=True))
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -478,7 +478,7 @@ async def test_live_edit_delete_and_read_receipts():
     gc = FakeGC()
     gc.store[10].append(msg(101, "shipping now", 1, out=True))
     gc._chats[1].read_outbox_max_id = 100
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -506,7 +506,7 @@ async def test_live_edit_delete_and_read_receipts():
 
 async def test_mention_autocomplete():
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -528,7 +528,7 @@ async def test_mention_autocomplete():
 
 async def test_mention_badge_and_toast_in_list():
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await gc.msg_handlers[0](SimpleNamespace(
@@ -544,7 +544,7 @@ async def test_copy_and_view(monkeypatch):
     copied = []
     monkeypatch.setattr(media, "copy_text", lambda t: copied.append(t) or True)
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -589,7 +589,7 @@ def voice_app(monkeypatch, tmp_path):
     import asyncio  # noqa: F401
     monkeypatch.setattr(media.VoiceRecorder, "available", staticmethod(lambda: True))
     gc = FakeGC()
-    app = WorkTG(gc, "Work", tmp_path / "dl", tmp_path / "tmp", voice_release_ms=150, voice_tap_ms=400)
+    app = TelegramVim(gc, "Work", tmp_path / "dl", tmp_path / "tmp", voice_release_ms=150, voice_tap_ms=400)
     recs = []
     app.make_recorder = lambda dest: recs.append(FakeRecorder(dest)) or recs[-1]
     return gc, app, recs
@@ -676,7 +676,7 @@ async def test_too_short_voice_is_discarded(monkeypatch, tmp_path):
 async def test_loading_older_reuses_rendered_messages(monkeypatch):
     store = {10: [msg(i, f"m{i}", 300 - i) for i in range(1, 121)]}
     gc = FakeGC(store)
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -698,7 +698,7 @@ async def test_jump_to_latest_trims_long_history(monkeypatch):
     store = {10: [msg(i, f"m{i}", 300 - i) for i in range(1, 121)]}
     store[10][-1].reply_to = SimpleNamespace(reply_to_msg_id=5)
     gc = FakeGC(store)
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -716,7 +716,7 @@ async def test_jump_to_latest_trims_long_history(monkeypatch):
 
 async def test_hidden_chat_list_is_not_redrawn_until_resume(monkeypatch):
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -735,7 +735,7 @@ async def test_hidden_chat_list_is_not_redrawn_until_resume(monkeypatch):
 
 async def test_burst_of_messages_redraws_list_once(monkeypatch):
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         ls = app.screen
@@ -755,7 +755,7 @@ def popups(calls):
 
 async def test_popup_for_other_chat_but_not_the_open_one(spawned):
     gc = FakeGC()
-    app = WorkTG(gc, "Work")
+    app = TelegramVim(gc, "Work")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await open_backend(pilot, app)
@@ -770,7 +770,7 @@ async def test_popup_for_other_chat_but_not_the_open_one(spawned):
 
 async def test_no_popup_on_visible_chat_list_unless_terminal_unfocused(spawned):
     gc = FakeGC()
-    app = WorkTG(gc, "Work", notifications="sound")
+    app = TelegramVim(gc, "Work", notifications="sound")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await gc.msg_handlers[0](SimpleNamespace(chat_id=20, message=msg(701, "hi"), get_sender=_noop))
@@ -785,7 +785,7 @@ async def test_no_popup_on_visible_chat_list_unless_terminal_unfocused(spawned):
 
 async def test_n_cycles_notification_modes_and_off_is_silent(spawned):
     gc = FakeGC()
-    app = WorkTG(gc, "Work", notifications="sound")
+    app = TelegramVim(gc, "Work", notifications="sound")
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await pilot.press("n")

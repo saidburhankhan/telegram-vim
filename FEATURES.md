@@ -1,4 +1,4 @@
-# work-tg: what's built
+# telegram-vim: what's built
 
 A work-only Telegram client for the terminal. It connects as your own user
 account (MTProto via Telethon, not the Bot API) and **only ever sees the chats
@@ -223,7 +223,7 @@ instead of a traceback.
 ## Project layout
 
 ```
-work-tg/
+telegram-vim/
   pyproject.toml         package + `tg` entry point
   config.example.toml    api keys, folder, data/download dirs, [voice], [notifications]
   README.md              setup and usage

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "work-tg"
+name = "telegram-vim"
 version = "0.1.0"
 description = "Distraction-free, vim-style Telegram client for the terminal, restricted to one work chat folder"
 readme = "README.md"

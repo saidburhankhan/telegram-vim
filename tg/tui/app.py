@@ -122,7 +122,7 @@ class ChatListScreen(Screen):
         self.query_one("#chats").focus()
 
     @property
-    def app_(self) -> "WorkTG":
+    def app_(self) -> "TelegramVim":
         return self.app  # type: ignore[return-value]
 
     def refresh_list(self) -> None:
@@ -137,7 +137,7 @@ class ChatListScreen(Screen):
         total = len(self.app_.chats)
         unread = sum(1 for c in self.app_.chats.values() if c.unread)
         mentions = sum(c.unread_mentions for c in self.app_.chats.values())
-        top = (f"[b]work-tg[/b] · folder [b]{escape(self.app_.folder)}[/b] · "
+        top = (f"[b]telegram-vim[/b] · folder [b]{escape(self.app_.folder)}[/b] · "
                f"{total} chats · {unread} unread · {self.app_.notifier.label}")
         if mentions:
             top += f" · [bold white on red] @{mentions} [/bold white on red]"
@@ -323,7 +323,7 @@ class ChatScreen(Screen):
         self._rec_timer = None
 
     @property
-    def app_(self) -> "WorkTG":
+    def app_(self) -> "TelegramVim":
         return self.app  # type: ignore[return-value]
 
     @property
@@ -1200,8 +1200,8 @@ class HelpScreen(ModalScreen):
 # --------------------------------------------------------------------------- #
 
 
-class WorkTG(App):
-    TITLE = "work-tg"
+class TelegramVim(App):
+    TITLE = "telegram-vim"
     BINDINGS = [Binding("ctrl+n", "cycle_notifications", "Notifications", show=False, priority=True)]
     CSS = """
     #topbar { height: 1; padding: 0 1; background: $primary-background; }
@@ -1232,8 +1232,8 @@ class WorkTG(App):
         self.voice_tap_ms = voice_tap_ms
         self.gc = gc
         self.folder = folder
-        self.download_dir = Path(download_dir or "~/Downloads/work-tg").expanduser()
-        self.tmp_dir = Path(tmp_dir or "/tmp/work-tg").expanduser()
+        self.download_dir = Path(download_dir or "~/Downloads/telegram-vim").expanduser()
+        self.tmp_dir = Path(tmp_dir or "/tmp/telegram-vim").expanduser()
         self.chats: dict[int, ChatInfo] = {c.peer_id: c for c in gc.chats()}
         self.members: dict[int, list[Member]] = {}
         self._list_refresh_pending = False

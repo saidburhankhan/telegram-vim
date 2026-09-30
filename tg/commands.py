@@ -57,7 +57,7 @@ def default(ctx: typer.Context) -> None:
 @app.command()
 def ui() -> None:
     """Interactive app: searchable chat list, Enter to open, Esc to go back."""
-    from .tui.app import WorkTG
+    from .tui.app import TelegramVim
 
     cfg = _cfg()
     # Keep library warnings out of the full-screen UI.
@@ -66,7 +66,7 @@ def ui() -> None:
 
     async def main():
         async with open_guarded(cfg, live=True) as gc:
-            await WorkTG(
+            await TelegramVim(
                 gc, cfg.folder, cfg.download_dir, cfg.data_dir / "tmp",
                 voice_source=cfg.voice_source, voice_release_ms=cfg.voice_release_ms,
                 voice_tap_ms=cfg.voice_tap_ms, notifications=cfg.notifications,

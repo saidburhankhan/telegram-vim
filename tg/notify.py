@@ -77,6 +77,6 @@ class Notifier:
             return
         body = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         # suppress-sound asks the notification daemon not to play its own sound.
-        _spawn(["notify-send", "-a", "work-tg", "-h", "boolean:suppress-sound:true", "--", title, body])
+        _spawn(["notify-send", "-a", "telegram-vim", "-h", "boolean:suppress-sound:true", "--", title, body])
         if sound:
             _play_sound()

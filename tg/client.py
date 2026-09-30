@@ -17,7 +17,7 @@ from .guard import Guard, GuardedClient
 
 CONFIG_SEARCH = (
     Path("config.toml"),
-    Path("~/.config/work-tg/config.toml").expanduser(),
+    Path("~/.config/telegram-vim/config.toml").expanduser(),
 )
 
 
@@ -96,8 +96,8 @@ def load_config() -> Config:
         api_id=api_id,
         api_hash=str(api_hash),
         folder=str(folder),
-        data_dir=Path(data.get("data_dir", "~/.local/share/work-tg")).expanduser(),
-        download_dir=Path(data.get("download_dir", "~/Downloads/work-tg")).expanduser(),
+        data_dir=Path(data.get("data_dir", "~/.local/share/telegram-vim")).expanduser(),
+        download_dir=Path(data.get("download_dir", "~/Downloads/telegram-vim")).expanduser(),
         path=path,
         voice_source=str(data.get("voice", {}).get("source", "default")),
         voice_release_ms=int(data.get("voice", {}).get("release_ms", 250)),
@@ -123,7 +123,7 @@ def make_client(cfg: Config) -> TelegramClient:
         cfg.api_id,
         cfg.api_hash,
         flood_sleep_threshold=24 * 3600,
-        device_model="work-tg",
+        device_model="telegram-vim",
         app_version="0.1.0",
     )
     return client
