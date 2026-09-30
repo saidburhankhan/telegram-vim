@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from rich.markup import escape
@@ -45,7 +45,7 @@ def local_time(dt: datetime | None) -> str:
     if dt is None:
         return "--:--"
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     local = dt.astimezone()
     today = datetime.now().astimezone().date()
     return local.strftime("%H:%M") if local.date() == today else local.strftime("%Y-%m-%d %H:%M")
@@ -56,7 +56,7 @@ def short_time(dt: datetime | None) -> str:
     if dt is None:
         return ""
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     local = dt.astimezone()
     now = datetime.now().astimezone()
     days = (now.date() - local.date()).days
@@ -174,6 +174,7 @@ def format_message(
             lines.extend(INDENT + escape(line) for line in t.split("\n"))
     elif len(lines) == 1:
         action = getattr(first, "action", None)
-        lines.append(INDENT + escape(f"<{type(action).__name__.removeprefix('MessageAction')}>" if action else "(empty)"))
+        label = f"<{type(action).__name__.removeprefix('MessageAction')}>" if action else "(empty)"
+        lines.append(INDENT + escape(label))
     lines.append("")
     return "\n".join(lines)

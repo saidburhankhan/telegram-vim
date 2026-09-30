@@ -244,6 +244,7 @@ Updates are event-driven, with no polling.
 ```bash
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/pytest
+.venv/bin/ruff check .
 ```
 
 No Telegram account or network is needed: the tests use fakes, and nothing

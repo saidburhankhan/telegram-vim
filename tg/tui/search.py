@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
-from typing import Iterable
+from collections.abc import Iterable
+from datetime import UTC, datetime
 
 from ..guard import ChatInfo
 
-_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+_EPOCH = datetime.min.replace(tzinfo=UTC)
 
 
 def by_recent(chats: Iterable[ChatInfo]) -> list[ChatInfo]:
@@ -17,7 +17,7 @@ def by_recent(chats: Iterable[ChatInfo]) -> list[ChatInfo]:
     def key(c: ChatInfo):
         d = c.last_date
         if d is not None and d.tzinfo is None:
-            d = d.replace(tzinfo=timezone.utc)
+            d = d.replace(tzinfo=UTC)
         return d or _EPOCH
 
     return sorted(chats, key=key, reverse=True)

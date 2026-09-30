@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,12 +7,11 @@ from telethon.tl import types
 from textual.widgets import Input, OptionList, Static
 
 from tg import media, notify
-
 from tg.guard import ChatInfo, NotAllowedError
 from tg.tui.app import ChatListScreen, ChatScreen, TelegramVim
 from tg.tui.search import by_recent, filter_chats
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 @pytest.fixture(autouse=True)
@@ -426,9 +425,10 @@ def msg_text(app, msg_id):
 async def test_album_shows_as_one_item(tmp_path):
     from test_media import photo_msg
     gc = FakeGC()
-    a = photo_msg(101); b = photo_msg(102)
+    a, b = photo_msg(101), photo_msg(102)
     for m in (a, b):
-        m.date, m.out, m.sender, m.reply_to, m.action, m.mentioned, m.edit_date = NOW, False, ALICE, None, None, False, None
+        m.date, m.out, m.sender, m.reply_to = NOW, False, ALICE, None
+        m.action, m.mentioned, m.edit_date = None, False, None
         m.grouped_id = 55
     b.message = "two screenshots"
     gc.store[10] += [a, b]

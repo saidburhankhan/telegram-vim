@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 import tomllib
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any
 
 from telethon import TelegramClient
 from telethon.errors import PhoneNumberInvalidError
@@ -141,7 +142,7 @@ async def login(
         for attempt in range(3):
             number = phone()
             try:
-                await client.start(phone=lambda: number, code_callback=code, password=password)
+                await client.start(phone=lambda n=number: n, code_callback=code, password=password)
                 break
             except PhoneNumberInvalidError:
                 if attempt == 2:

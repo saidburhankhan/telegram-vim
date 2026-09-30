@@ -20,6 +20,7 @@ from typing import Any
 from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
+from telethon import utils
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -28,7 +29,6 @@ from textual.screen import ModalScreen, Screen
 from textual.suggester import Suggester
 from textual.widgets import Footer, Input, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
-from telethon import utils
 
 from .. import media, render
 from ..guard import ChatInfo, GuardedClient, GuardError
@@ -122,7 +122,7 @@ class ChatListScreen(Screen):
         self.query_one("#chats").focus()
 
     @property
-    def app_(self) -> "TelegramVim":
+    def app_(self) -> TelegramVim:
         return self.app  # type: ignore[return-value]
 
     def refresh_list(self) -> None:
@@ -231,7 +231,7 @@ def mention_prefix(value: str) -> str | None:
 class MentionSuggester(Suggester):
     """Shows the best @mention completion as ghost text (Tab accepts)."""
 
-    def __init__(self, screen: "ChatScreen"):
+    def __init__(self, screen: ChatScreen):
         super().__init__(use_cache=False, case_sensitive=True)
         self._screen = screen
 
@@ -323,7 +323,7 @@ class ChatScreen(Screen):
         self._rec_timer = None
 
     @property
-    def app_(self) -> "TelegramVim":
+    def app_(self) -> TelegramVim:
         return self.app  # type: ignore[return-value]
 
     @property
@@ -870,7 +870,8 @@ class ChatScreen(Screen):
                     body = f"Read by {len(readers)}:\n\n" + "\n".join(rows)
         except Exception as e:
             reason = str(e).split("(")[0].strip() or type(e).__name__
-            body = f"{'✓✓ Read' if read else '✓ Not read yet'}\n\n[dim]Telegram won't give details: {escape(reason)}[/dim]"
+            status = "✓✓ Read" if read else "✓ Not read yet"
+            body = f"{status}\n\n[dim]Telegram won't give details: {escape(reason)}[/dim]"
         self.app.push_screen(InfoScreen(f"Message #{sel.id}", body))
 
     async def action_next_match(self, step: int) -> None:

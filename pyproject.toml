@@ -26,11 +26,12 @@ classifiers = [
     "Topic :: Communications :: Chat",
 ]
 dependencies = [
-    "telethon>=1.36",
+    # Telethon 2 is a rewrite and Textual breaks APIs between majors: cap both.
+    "telethon>=1.36,<2",
     "cryptg>=0.4",  # native AES; without it Telethon encrypts media in pure Python
     "typer>=0.12",
     "rich>=13",
-    "textual>=0.60",
+    "textual>=8,<9",
 ]
 
 [project.urls]
@@ -38,13 +39,21 @@ Homepage = "https://github.com/saidburkhanmukhtorov/telegram-vim"
 Issues = "https://github.com/saidburkhanmukhtorov/telegram-vim/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
 
 [project.scripts]
 tg = "tg.commands:app"
 
 [tool.setuptools.packages.find]
 include = ["tg*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["B008"]  # typer.Argument/Option defaults are the Typer idiom
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -1,12 +1,11 @@
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from telethon.tl import types
 
 from tg import media, render
 
-NOW = datetime.now(timezone.utc)
+NOW = datetime.now(UTC)
 
 
 def doc_msg(id=7, size=2_400_000, mime="application/pdf", attrs=None):

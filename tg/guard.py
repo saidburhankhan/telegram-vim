@@ -21,10 +21,11 @@ import json
 import logging
 import os
 import time
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Iterable
+from typing import Any
 
 from telethon import events, utils
 from telethon.errors import FloodWaitError, RPCError

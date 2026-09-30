@@ -6,15 +6,18 @@ import asyncio
 import getpass
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import typer
 from rich.console import Console
 from telethon.errors import RPCError
 
 from . import media, render
-from .client import ConfigError, load_config, login as do_login, logout as do_logout, open_guarded
+from .client import ConfigError, load_config, open_guarded
+from .client import login as do_login
+from .client import logout as do_logout
 from .guard import GuardError
 
 app = typer.Typer(
@@ -31,12 +34,12 @@ def run(coro_fn: Callable[[], Awaitable[Any]]) -> None:
         asyncio.run(coro_fn())
     except (ConfigError, GuardError) as e:
         err.print(f"[red]error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except RPCError as e:
         err.print(f"[red]Telegram error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except KeyboardInterrupt:
-        raise typer.Exit(130)
+        raise typer.Exit(130) from None
 
 
 def _show_flood_wait(seconds: int) -> None:
@@ -271,7 +274,7 @@ def _cfg():
         return load_config()
     except ConfigError as e:
         err.print(f"[red]error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 if __name__ == "__main__":
