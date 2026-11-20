@@ -1,5 +1,6 @@
 # --- Secrets and local state: never commit these ---
 config.toml
+config.toml.bak.*
 !config.example.toml
 .env
 *.session

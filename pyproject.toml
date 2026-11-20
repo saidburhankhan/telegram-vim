@@ -35,8 +35,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/saidburkhanmukhtorov/telegram-vim"
-Issues = "https://github.com/saidburkhanmukhtorov/telegram-vim/issues"
+Homepage = "https://github.com/saidburhankhan/telegram-vim"
+Issues = "https://github.com/saidburhankhan/telegram-vim/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6"]
